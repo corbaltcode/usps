@@ -8,7 +8,7 @@ import (
 	"os"
 	"regexp"
 
-    "github.com/corbaltcode/usps/citystate"
+	"github.com/corbaltcode/usps/citystate"
 	"github.com/yeka/zip"
 )
 
