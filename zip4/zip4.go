@@ -1,4 +1,4 @@
-package usps
+package zip4
 
 import (
 	"archive/tar"
@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 
+    "github.com/corbaltcode/usps/citystate"
 	"github.com/yeka/zip"
 )
 
@@ -41,7 +42,7 @@ func (n Zip4Number) IsDeliverable() bool {
 	return n.Segment() != "ND"
 }
 
-func ReadCityStateFromZip4Tar(tarName string, zipPassword string, yield func(CityStateDetail)) error {
+func ReadCityStateFromZip4Tar(tarName string, zipPassword string, yield func(citystate.CityStateDetail)) error {
 	bz, err := readTarEntry(tarName, "epf-zip4natl/ctystate/ctystate.zip")
 	if err != nil {
 		return err
@@ -67,7 +68,7 @@ func ReadCityStateFromZip4Tar(tarName string, zipPassword string, yield func(Cit
 	}
 	defer r.Close()
 
-	return ReadCityStateFile(r, yield)
+	return citystate.ReadCityStateFile(r, yield)
 }
 
 func ReadZip4FromZip4Tar(tarName string, zipPassword string, yield func(Zip4Detail)) error {
