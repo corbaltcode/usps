@@ -6,7 +6,7 @@ import (
 	"github.com/corbaltcode/usps/zip4"
 )
 
-func CollectDetails(tarName, zipPassword string) (map[string][]string, error) {
+func CollectZip4Details(tarName, zipPassword string) (map[string][]string, error) {
 	var details []zip4.Zip4Detail
 
 	yield := func(detail zip4.Zip4Detail) {

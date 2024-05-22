@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/corbaltcode/usps/counties"
@@ -10,19 +9,20 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		log.Fatalf("Usage: %s <tar_file_name>", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Error: Missing tar file name\nUsage: %s <tar_file_name>\n", os.Args[0])
+		os.Exit(1)
 	}
 
 	tarName := os.Args[1]
 
 	zipPassword := mustGetenv("ZIP_PASSWORD")
 
-	zipToCounty, err := counties.CollectDetails(tarName, zipPassword)
+	zipToCounty, err := counties.CollectZip4Details(tarName, zipPassword)
 	if err != nil {
-		log.Fatalf("Failed to collect details: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to collect details: %v\n", err)
+		os.Exit(1)
 	}
 
-	// Todo: output to CSV file. For now, print to console.
 	for zip, counties := range zipToCounty {
 		fmt.Printf("ZIP Code: %s, County Numbers: %v\n", zip, counties)
 	}
