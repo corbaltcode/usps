@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/corbaltcode/usps/counties"
+	"github.com/corbaltcode/usps/internal/counties"
 )
 
 func main() {
