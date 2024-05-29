@@ -27,10 +27,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Early return for the user-specified, single zip case.
+	// Early return for the user-specified, single ZIP case.
 	if *zipCode != "" {
-		printCountiesForZIP(zipToCounty, *zipCode)
-		return
+		if counties, found := zipToCounty[*zipCode]; found {
+			fmt.Printf("ZIP Code: %s, Counties: %v\n", *zipCode, counties)
+			return
+		}
+
+		fmt.Printf("No counties found for ZIP Code: %s\n", *zipCode)
+		os.Exit(1)
 	}
 
 	err = exportToCSV(zipToCounty)
@@ -41,8 +46,8 @@ func main() {
 }
 
 func exportToCSV(zipToCounty map[string][]string) error {
-	writer := os.Stdout
-	csvWriter := csv.NewWriter(writer)
+	csvWriter := csv.NewWriter(os.Stdout)
+
 	defer csvWriter.Flush()
 
 	header := []string{"ZIP Code", "County Numbers"}
@@ -58,14 +63,6 @@ func exportToCSV(zipToCounty map[string][]string) error {
 	}
 
 	return nil
-}
-
-func printCountiesForZIP(zipToCounty map[string][]string, zip string) {
-	if counties, found := zipToCounty[zip]; found {
-		fmt.Printf("ZIP Code: %s, Counties: %v\n", zip, counties)
-	} else {
-		fmt.Printf("No counties found for ZIP Code: %s\n", zip)
-	}
 }
 
 func mustGetenv(key string) string {
