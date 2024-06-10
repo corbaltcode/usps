@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/corbaltcode/usps/internal/counties"
 )
@@ -56,7 +57,8 @@ func exportToCSV(zipToCounty map[string][]string) error {
 	}
 
 	for zip, counties := range zipToCounty {
-		record := []string{zip, fmt.Sprintf("%v", counties)}
+		joinedCounties := strings.Join(counties, ",")
+		record := []string{zip, joinedCounties}
 		if err := csvWriter.Write(record); err != nil {
 			return fmt.Errorf("failed to write record: %w", err)
 		}
