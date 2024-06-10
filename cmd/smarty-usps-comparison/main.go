@@ -13,22 +13,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/corbaltcode/usps/internal/processsmarty"
+	"github.com/corbaltcode/usps/internal/smartyresponseprocessing"
 )
 
 type ZipcodeRequest struct {
 	Zipcode string `json:"zipcode"`
 }
 
-func readCSV(fileName string) ([]string, map[string][]string, error) {
-	file, err := os.Open(fileName)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	header, err := reader.Read()
+func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string, error) {
+	csvReader := csv.NewReader(reader)
+	header, err := csvReader.Read()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read header: %w", err)
 	}
@@ -38,10 +32,10 @@ func readCSV(fileName string) ([]string, map[string][]string, error) {
 	}
 
 	var zips []string
-	zipToCounties := make(map[string][]string)
+	zipToCounty := make(map[string][]string)
 
 	for {
-		record, err := reader.Read()
+		record, err := csvReader.Read()
 		if err == io.EOF {
 			break
 		}
@@ -53,10 +47,10 @@ func readCSV(fileName string) ([]string, map[string][]string, error) {
 		counties := parseCounties(record[1])
 
 		zips = append(zips, zip)
-		zipToCounties[zip] = counties
+		zipToCounty[zip] = counties
 	}
 
-	return zips, zipToCounties, nil
+	return zips, zipToCounty, nil
 }
 
 func parseCounties(countyData string) []string {
@@ -114,23 +108,29 @@ func mustGetenv(key string) string {
 func main() {
 	authId := mustGetenv("AUTH_ID")
 	authToken := mustGetenv("AUTH_TOKEN")
-	uspsCountyFile := flag.String("source", "", "Source file path for the CSV data")
+	uspsZipToCountyFile := flag.String("csv", "", "CSV file path containing zip to county mappings for USPS data")
 	flag.Parse()
 
-	if *uspsCountyFile == "" {
-		log.Fatal("You must specify a source file path using the --source flag.")
+	var reader io.Reader
+
+	// We can read from standard input or from a specified csv file.
+	if *uspsZipToCountyFile == "" {
+		reader = os.Stdin
+	} else {
+		file, err := os.Open(*uspsZipToCountyFile)
+		if err != nil {
+			log.Fatalf("Error opening file: %v", err)
+		}
+		defer file.Close()
+		reader = file
 	}
 
-	zips, zipToCounties, err := readCSV(*uspsCountyFile)
+	zips, zipToCounty, err := readZipToCountyDataFromCSV(reader)
 	if err != nil {
 		log.Fatalf("Error reading CSV file: %v", err)
 	}
 
-	comparisonResults := make([]processsmarty.ZipcodeResult, 0)
-
-	yield := func(result processsmarty.ZipcodeResult) {
-		comparisonResults = append(comparisonResults, result)
-
+	yield := func(result smartyresponseprocessing.ZipcodeResult) {
 		if result.Inconsistencies > 0 {
 			log.Printf("%+v", result)
 		}
@@ -138,7 +138,7 @@ func main() {
 	}
 
 	const batchSize = 100
-	const rateLimitPause = 3 * time.Second
+	const rateLimitPause = 2 * time.Second
 
 	for i := 0; i < len(zips); i += batchSize {
 		end := i + batchSize
@@ -150,16 +150,14 @@ func main() {
 
 		if err != nil {
 			log.Printf("Error querying Smarty API: %v", err)
-
 		}
 
-		results := processsmarty.ProcessSmartyResponse(responseBody, zipToCounties, yield)
-		fmt.Println(results)
+		smartyresponseprocessing.ProcessSmartyResponse(responseBody, zipToCounty, yield)
 
-		log.Printf("Pausing for %v to handle rate limiting", rateLimitPause)
-		log.Printf("%v zips processesd", i)
+		log.Printf("%v zips processed.", i+batchSize)
+
 		time.Sleep(rateLimitPause)
 	}
 
-	fmt.Println("All ZIP codes processed.")
+	fmt.Println("All zip codes processed.")
 }

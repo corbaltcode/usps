@@ -1,4 +1,4 @@
-package processsmarty
+package smartyresponseprocessing
 
 import (
 	"encoding/json"
@@ -6,13 +6,6 @@ import (
 )
 
 type SmartyResponse struct {
-	InputIndex int `json:"input_index"`
-	CityStates []struct {
-		City              string `json:"city"`
-		StateAbbreviation string `json:"state_abbreviation"`
-		State             string `json:"state"`
-		MailableCity      bool   `json:"mailable_city"`
-	} `json:"city_states"`
 	Zipcodes []struct {
 		Zipcode           string  `json:"zipcode"`
 		ZipcodeType       string  `json:"zipcode_type"`
@@ -35,8 +28,8 @@ type SmartyResponse struct {
 
 type ZipcodeResult struct {
 	Zipcode         string
-	USPSCounties    []string
-	SmartyFIPS      []string
+	USPSFips        []string
+	SmartyFips      []string
 	Inconsistencies int
 }
 
@@ -50,17 +43,18 @@ func ProcessSmartyResponse(responseBody []byte, zipToCounties map[string][]strin
 	for _, response := range smartyResponses {
 		for _, zipcode := range response.Zipcodes {
 			result := ZipcodeResult{
-				Zipcode:      zipcode.Zipcode,
-				USPSCounties: zipToCounties[zipcode.Zipcode],
+				Zipcode:  zipcode.Zipcode,
+				USPSFips: zipToCounties[zipcode.Zipcode],
 			}
 
+			// Extract the last three digits of the Smarty Fips code, which represent the county.
 			smartyFIPS := []string{zipcode.CountyFIPS[len(zipcode.CountyFIPS)-3:]}
 			for _, altCounty := range zipcode.AlternateCounties {
 				smartyFIPS = append(smartyFIPS, altCounty.CountyFIPS[len(altCounty.CountyFIPS)-3:])
 			}
-			result.SmartyFIPS = smartyFIPS
+			result.SmartyFips = smartyFIPS
 
-			inconsistencies := calculateInconsistencies(result.USPSCounties, result.SmartyFIPS)
+			inconsistencies := calculateInconsistencies(result.USPSFips, result.SmartyFips)
 			result.Inconsistencies = inconsistencies
 
 			yield(result)
@@ -71,14 +65,14 @@ func ProcessSmartyResponse(responseBody []byte, zipToCounties map[string][]strin
 }
 
 func calculateInconsistencies(uspsFIPS, smartyFIPS []string) int {
-	uspsSet := make(map[string]struct{})
+	uspsSet := make(map[string]bool)
 	for _, fips := range uspsFIPS {
-		uspsSet[fips] = struct{}{}
+		uspsSet[fips] = true
 	}
 
 	inconsistencies := 0
 	for _, fips := range smartyFIPS {
-		if _, found := uspsSet[fips]; !found {
+		if !uspsSet[fips] {
 			inconsistencies++
 		}
 	}
