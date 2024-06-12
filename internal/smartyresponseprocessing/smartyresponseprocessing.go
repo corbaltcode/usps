@@ -3,6 +3,10 @@ package smartyresponseprocessing
 import (
 	"encoding/json"
 	"fmt"
+
+	"sort"
+
+	"golang.org/x/exp/slices"
 )
 
 type SmartyResponse struct {
@@ -27,10 +31,10 @@ type SmartyResponse struct {
 }
 
 type ZipcodeResult struct {
-	Zipcode         string
-	USPSFips        []string
-	SmartyFips      []string
-	Inconsistencies int
+	Zipcode     string
+	USPSFips    []string
+	SmartyFips  []string
+	HasMismatch bool
 }
 
 func ProcessSmartyResponse(responseBody []byte, zipToCounties map[string][]string, yield func(ZipcodeResult)) error {
@@ -54,8 +58,7 @@ func ProcessSmartyResponse(responseBody []byte, zipToCounties map[string][]strin
 			}
 			result.SmartyFips = smartyFIPS
 
-			inconsistencies := calculateInconsistencies(result.USPSFips, result.SmartyFips)
-			result.Inconsistencies = inconsistencies
+			result.HasMismatch = slicesDiffer(result.USPSFips, result.SmartyFips)
 
 			yield(result)
 		}
@@ -64,18 +67,8 @@ func ProcessSmartyResponse(responseBody []byte, zipToCounties map[string][]strin
 	return nil
 }
 
-func calculateInconsistencies(uspsFIPS, smartyFIPS []string) int {
-	uspsSet := make(map[string]bool)
-	for _, fips := range uspsFIPS {
-		uspsSet[fips] = true
-	}
-
-	inconsistencies := 0
-	for _, fips := range smartyFIPS {
-		if !uspsSet[fips] {
-			inconsistencies++
-		}
-	}
-
-	return inconsistencies
+func slicesDiffer(uspsFIPS, smartyFIPS []string) bool {
+	sort.Strings(uspsFIPS)
+	sort.Strings(smartyFIPS)
+	return !slices.Equal(uspsFIPS, smartyFIPS)
 }

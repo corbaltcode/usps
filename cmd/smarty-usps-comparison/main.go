@@ -131,10 +131,9 @@ func main() {
 	}
 
 	yield := func(result smartyresponseprocessing.ZipcodeResult) {
-		if result.Inconsistencies > 0 {
+		if result.HasMismatch {
 			log.Printf("%+v", result)
 		}
-
 	}
 
 	const batchSize = 100
