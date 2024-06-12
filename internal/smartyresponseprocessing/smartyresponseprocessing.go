@@ -1,9 +1,6 @@
 package smartyresponseprocessing
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"sort"
 
 	"golang.org/x/exp/slices"
@@ -37,14 +34,8 @@ type ZipcodeResult struct {
 	HasMismatch bool
 }
 
-func ProcessSmartyResponse(responseBody []byte, zipToCounties map[string][]string, yield func(ZipcodeResult)) error {
-	var smartyResponses []SmartyResponse
-	err := json.Unmarshal(responseBody, &smartyResponses)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	for _, response := range smartyResponses {
+func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[string][]string, yield func(ZipcodeResult)) error {
+	for _, response := range responseBody {
 		for _, zipcode := range response.Zipcodes {
 			result := ZipcodeResult{
 				Zipcode:  zipcode.Zipcode,
