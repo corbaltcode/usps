@@ -44,7 +44,7 @@ func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string
 		}
 
 		zip := record[0]
-		counties := parseCounties(record[1])
+		counties := parseCSVList(record[1])
 
 		zips = append(zips, zip)
 		zipToCounty[zip] = counties
@@ -53,12 +53,12 @@ func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string
 	return zips, zipToCounty, nil
 }
 
-func parseCounties(countyData string) []string {
-	counties := strings.Split(countyData, ",")
-	for i, county := range counties {
-		counties[i] = strings.TrimSpace(county)
+func parseCSVList(dataString string) []string {
+	items := strings.Split(dataString, ",")
+	for i, item := range items {
+		items[i] = strings.TrimSpace(item)
 	}
-	return counties
+	return items
 }
 
 func querySmartyAPIBatch(zips []string, authId string, authToken string) ([]byte, error) {
