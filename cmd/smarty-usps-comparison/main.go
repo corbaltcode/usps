@@ -13,36 +13,41 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"golang.org/x/exp/slices"
 )
 
 type SmartyResponse struct {
-	Zipcodes []struct {
-		Zipcode           string  `json:"zipcode"`
-		ZipcodeType       string  `json:"zipcode_type"`
-		DefaultCity       string  `json:"default_city"`
-		CountyFIPS        string  `json:"county_fips"`
-		CountyName        string  `json:"county_name"`
-		StateAbbreviation string  `json:"state_abbreviation"`
-		State             string  `json:"state"`
-		Latitude          float64 `json:"latitude"`
-		Longitude         float64 `json:"longitude"`
-		Precision         string  `json:"precision"`
-		AlternateCounties []struct {
-			CountyFIPS        string `json:"county_fips"`
-			CountyName        string `json:"county_name"`
-			StateAbbreviation string `json:"state_abbreviation"`
-			State             string `json:"state"`
-		} `json:"alternate_counties"`
-	} `json:"zipcodes"`
+	InputIndex int       `json:"input_index"`
+	Status     string    `json:"status,omitempty"`
+	Reason     string    `json:"reason,omitempty"`
+	Zipcodes   []Zipcode `json:"zipcodes,omitempty"`
+}
+
+type Zipcode struct {
+	Zipcode           string            `json:"zipcode"`
+	ZipcodeType       string            `json:"zipcode_type"`
+	DefaultCity       string            `json:"default_city"`
+	CountyFIPS        string            `json:"county_fips"`
+	CountyName        string            `json:"county_name"`
+	StateAbbreviation string            `json:"state_abbreviation"`
+	State             string            `json:"state"`
+	Latitude          float64           `json:"latitude"`
+	Longitude         float64           `json:"longitude"`
+	Precision         string            `json:"precision"`
+	AlternateCounties []AlternateCounty `json:"alternate_counties"`
+}
+
+type AlternateCounty struct {
+	CountyFIPS        string `json:"county_fips"`
+	CountyName        string `json:"county_name"`
+	StateAbbreviation string `json:"state_abbreviation"`
+	State             string `json:"state"`
 }
 
 type ZipcodeResult struct {
-	Zipcode     string
-	USPSFips    []string
-	SmartyFips  []string
-	HasMismatch bool
+	Zipcode      string
+	USPSFips     []string
+	SmartyFips   []string
+	ErrorMessage string
 }
 
 type ZipcodeRequest struct {
@@ -150,34 +155,76 @@ func parseCSVList(dataString string) []string {
 	return items
 }
 
-func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[string][]string, yield func(ZipcodeResult)) error {
+func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[string][]string, zipCodes []string) ([]ZipcodeResult, error) {
+	processedResponses := make([]ZipcodeResult, 0)
+
 	for _, response := range responseBody {
+		if response.Status != "" {
+			result := ZipcodeResult{
+				ErrorMessage: fmt.Sprintf("Invalid zip code: %s - %s, Reason: %s", zipCodes[response.InputIndex], response.Status, response.Reason),
+				USPSFips:     zipToCounties[zipCodes[response.InputIndex]],
+				SmartyFips:   []string{},
+				Zipcode:      zipCodes[response.InputIndex],
+			}
+			processedResponses = append(processedResponses, result)
+			continue
+		}
+
 		for _, zipcode := range response.Zipcodes {
 			result := ZipcodeResult{
 				Zipcode:  zipcode.Zipcode,
 				USPSFips: zipToCounties[zipcode.Zipcode],
 			}
 
-			// Extract the last three digits of the Smarty Fips code, which represent the county.
-			smartyFIPS := []string{zipcode.CountyFIPS[len(zipcode.CountyFIPS)-3:]}
-			for _, altCounty := range zipcode.AlternateCounties {
-				smartyFIPS = append(smartyFIPS, altCounty.CountyFIPS[len(altCounty.CountyFIPS)-3:])
+			if len(zipcode.CountyFIPS) >= 3 {
+				result.SmartyFips = append(result.SmartyFips, zipcode.CountyFIPS[len(zipcode.CountyFIPS)-3:])
 			}
-			result.SmartyFips = smartyFIPS
 
-			result.HasMismatch = slicesDiffer(result.USPSFips, result.SmartyFips)
+			for _, altCounty := range zipcode.AlternateCounties {
+				if len(altCounty.CountyFIPS) >= 3 {
+					result.SmartyFips = append(result.SmartyFips, altCounty.CountyFIPS[len(altCounty.CountyFIPS)-3:])
+				}
+			}
 
-			yield(result)
+			mismatches := countMismatches(result.USPSFips, result.SmartyFips)
+			if mismatches > 0 {
+				result.ErrorMessage = fmt.Sprintf("Mismatches found: %d", mismatches)
+			}
+
+			processedResponses = append(processedResponses, result)
 		}
 	}
 
-	return nil
+	return processedResponses, nil
 }
 
-func slicesDiffer(uspsFIPS, smartyFIPS []string) bool {
+func countMismatches(uspsFIPS, smartyFIPS []string) int {
 	sort.Strings(uspsFIPS)
 	sort.Strings(smartyFIPS)
-	return !slices.Equal(uspsFIPS, smartyFIPS)
+
+	i, j := 0, 0
+	mismatches := 0
+
+	for i < len(uspsFIPS) && j < len(smartyFIPS) {
+		if uspsFIPS[i] == smartyFIPS[j] {
+			i++
+			j++
+		} else if uspsFIPS[i] < smartyFIPS[j] {
+			// Usps has an element that smarty doesn't have
+			mismatches++
+			i++
+		} else {
+			// Smarty has an element that usps doesn't have
+			mismatches++
+			j++
+		}
+	}
+
+	// Count any remaining elements as mismatches.
+	mismatches += len(uspsFIPS) - i
+	mismatches += len(smartyFIPS) - j
+
+	return mismatches
 }
 
 func mustGetenv(key string) string {
@@ -214,12 +261,6 @@ func main() {
 		log.Fatalf("Error reading CSV file: %v", err)
 	}
 
-	yield := func(result ZipcodeResult) {
-		if result.HasMismatch {
-			log.Printf("%+v", result)
-		}
-	}
-
 	const batchSize = 100
 	const rateLimitPause = 2 * time.Second
 
@@ -235,7 +276,21 @@ func main() {
 			log.Printf("Error querying Smarty API: %v", err)
 		}
 
-		ProcessSmartyResponse(responseBody, zipToCounty, yield)
+		processedResponses, err := ProcessSmartyResponse(responseBody, zipToCounty, zips)
+
+		if err != nil {
+			log.Printf("Error processing responses: %v", err)
+		}
+
+		for _, response := range processedResponses {
+			if response.ErrorMessage != "" {
+				log.Printf("Processed Response - Zipcode: %s, USPS Fips: [%s], Smarty Fips: [%s], Error: %s",
+					response.Zipcode,
+					joinStrings(response.USPSFips, ","),
+					joinStrings(response.SmartyFips, ","),
+					response.ErrorMessage)
+			}
+		}
 
 		log.Printf("%v zips processed.", i+batchSize)
 
@@ -243,4 +298,15 @@ func main() {
 	}
 
 	fmt.Println("All zip codes processed.")
+}
+
+func joinStrings(items []string, sep string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	result := items[0]
+	for _, item := range items[1:] {
+		result += sep + item
+	}
+	return result
 }
