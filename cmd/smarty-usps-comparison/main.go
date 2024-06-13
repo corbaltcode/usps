@@ -244,7 +244,6 @@ func main() {
 
 	var reader io.Reader
 
-	// We can read from standard input or from a specified csv file.
 	if *uspsZipToCountyFile == "" {
 		reader = os.Stdin
 	} else {
@@ -261,34 +260,44 @@ func main() {
 		log.Fatalf("Error reading CSV file: %v", err)
 	}
 
+	writer := csv.NewWriter(os.Stdout)
+	defer writer.Flush()
+
+	headers := []string{"Zipcode", "USPS Fips", "Smarty Fips", "Error"}
+	if err := writer.Write(headers); err != nil {
+		log.Fatalf("Error writing headers to CSV: %v", err)
+	}
+
 	const batchSize = 100
 	const rateLimitPause = 2 * time.Second
 
 	for i := 0; i < len(zips); i += batchSize {
-		end := i + batchSize
-		if end > len(zips) {
-			end = len(zips)
-		}
+		end := min(i+batchSize, len(zips))
+
 		batch := zips[i:end]
 		responseBody, err := client.QueryBatch(batch)
 
 		if err != nil {
 			log.Printf("Error querying Smarty API: %v", err)
+			continue
 		}
 
 		processedResponses, err := ProcessSmartyResponse(responseBody, zipToCounty, zips)
 
 		if err != nil {
 			log.Printf("Error processing responses: %v", err)
+			continue
 		}
 
 		for _, response := range processedResponses {
-			if response.ErrorMessage != "" {
-				log.Printf("Processed Response - Zipcode: %s, USPS Fips: [%s], Smarty Fips: [%s], Error: %s",
-					response.Zipcode,
-					joinStrings(response.USPSFips, ","),
-					joinStrings(response.SmartyFips, ","),
-					response.ErrorMessage)
+			record := []string{
+				response.Zipcode,
+				strings.Join(response.USPSFips, ","),
+				strings.Join(response.SmartyFips, ","),
+				response.ErrorMessage,
+			}
+			if err := writer.Write(record); err != nil {
+				log.Printf("Error writing to CSV: %v", err)
 			}
 		}
 
@@ -298,15 +307,4 @@ func main() {
 	}
 
 	fmt.Println("All zip codes processed.")
-}
-
-func joinStrings(items []string, sep string) string {
-	if len(items) == 0 {
-		return ""
-	}
-	result := items[0]
-	for _, item := range items[1:] {
-		result += sep + item
-	}
-	return result
 }
