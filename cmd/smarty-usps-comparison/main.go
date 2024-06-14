@@ -114,6 +114,14 @@ func (client *SmartyClient) QueryBatch(zips []string) ([]SmartyResponse, error) 
 	return smartyResponses, nil
 }
 
+func parseCSVList(dataString string) []string {
+	items := strings.Split(dataString, ",")
+	for i, item := range items {
+		items[i] = strings.TrimSpace(item)
+	}
+	return items
+}
+
 func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string, error) {
 	csvReader := csv.NewReader(reader)
 	header, err := csvReader.Read()
@@ -147,24 +155,21 @@ func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string
 	return zips, zipToCounty, nil
 }
 
-func parseCSVList(dataString string) []string {
-	items := strings.Split(dataString, ",")
-	for i, item := range items {
-		items[i] = strings.TrimSpace(item)
-	}
-	return items
-}
-
-func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[string][]string, zipCodes []string) ([]ZipcodeResult, error) {
+func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[string][]string, zipcodes []string, startIndex int) ([]ZipcodeResult, error) {
 	processedResponses := make([]ZipcodeResult, 0)
 
 	for _, response := range responseBody {
+		batchAdjustedIndex := startIndex + response.InputIndex
+		if batchAdjustedIndex < 0 || batchAdjustedIndex >= len(zipcodes) {
+			return nil, fmt.Errorf("global input index %d is out of bounds, indicating a possible issue with API response", batchAdjustedIndex)
+		}
+
 		if response.Status != "" {
 			result := ZipcodeResult{
-				ErrorMessage: fmt.Sprintf("Invalid zip code: %s - %s, Reason: %s", zipCodes[response.InputIndex], response.Status, response.Reason),
-				USPSFips:     zipToCounties[zipCodes[response.InputIndex]],
+				ErrorMessage: fmt.Sprintf("Invalid zip code: %s - %s, Reason: %s", zipcodes[batchAdjustedIndex], response.Status, response.Reason),
+				USPSFips:     zipToCounties[zipcodes[batchAdjustedIndex]],
 				SmartyFips:   []string{},
-				Zipcode:      zipCodes[response.InputIndex],
+				Zipcode:      zipcodes[batchAdjustedIndex],
 			}
 			processedResponses = append(processedResponses, result)
 			continue
@@ -176,14 +181,10 @@ func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[stri
 				USPSFips: zipToCounties[zipcode.Zipcode],
 			}
 
-			if len(zipcode.CountyFIPS) >= 3 {
-				result.SmartyFips = append(result.SmartyFips, zipcode.CountyFIPS[len(zipcode.CountyFIPS)-3:])
-			}
+			result.SmartyFips = append(result.SmartyFips, getLastThreeChars(zipcode.CountyFIPS))
 
 			for _, altCounty := range zipcode.AlternateCounties {
-				if len(altCounty.CountyFIPS) >= 3 {
-					result.SmartyFips = append(result.SmartyFips, altCounty.CountyFIPS[len(altCounty.CountyFIPS)-3:])
-				}
+				result.SmartyFips = append(result.SmartyFips, getLastThreeChars(altCounty.CountyFIPS))
 			}
 
 			mismatches := countMismatches(result.USPSFips, result.SmartyFips)
@@ -198,6 +199,13 @@ func ProcessSmartyResponse(responseBody []SmartyResponse, zipToCounties map[stri
 	return processedResponses, nil
 }
 
+func getLastThreeChars(s string) string {
+	if len(s) >= 3 {
+		return s[len(s)-3:]
+	}
+	return ""
+}
+
 func countMismatches(uspsFIPS, smartyFIPS []string) int {
 	sort.Strings(uspsFIPS)
 	sort.Strings(smartyFIPS)
@@ -210,11 +218,11 @@ func countMismatches(uspsFIPS, smartyFIPS []string) int {
 			i++
 			j++
 		} else if uspsFIPS[i] < smartyFIPS[j] {
-			// Usps has an element that smarty doesn't have
+			// Usps has an element that smarty doesn't have.
 			mismatches++
 			i++
 		} else {
-			// Smarty has an element that usps doesn't have
+			// Smarty has an element that usps doesn't have.
 			mismatches++
 			j++
 		}
@@ -233,6 +241,15 @@ func mustGetenv(key string) string {
 		log.Fatalf("missing required environment variable: %s", key)
 	}
 	return v
+}
+
+func setupCSVWriter(output io.Writer) *csv.Writer {
+	writer := csv.NewWriter(output)
+	headers := []string{"Zipcode", "USPS Fips", "Smarty Fips", "Error"}
+	if err := writer.Write(headers); err != nil {
+		log.Fatalf("Error writing headers to CSV: %v", err)
+	}
+	return writer
 }
 
 func main() {
@@ -260,13 +277,8 @@ func main() {
 		log.Fatalf("Error reading CSV file: %v", err)
 	}
 
-	writer := csv.NewWriter(os.Stdout)
+	writer := setupCSVWriter(os.Stdout)
 	defer writer.Flush()
-
-	headers := []string{"Zipcode", "USPS Fips", "Smarty Fips", "Error"}
-	if err := writer.Write(headers); err != nil {
-		log.Fatalf("Error writing headers to CSV: %v", err)
-	}
 
 	const batchSize = 100
 	const rateLimitPause = 2 * time.Second
@@ -282,7 +294,7 @@ func main() {
 			continue
 		}
 
-		processedResponses, err := ProcessSmartyResponse(responseBody, zipToCounty, zips)
+		processedResponses, err := ProcessSmartyResponse(responseBody, zipToCounty, zips, i)
 
 		if err != nil {
 			log.Printf("Error processing responses: %v", err)
