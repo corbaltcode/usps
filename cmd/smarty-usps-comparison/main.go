@@ -68,12 +68,12 @@ func ProcessSmartyResponse(responseBody []smarty.SmartyResponse, zipToCounties m
 	for _, response := range responseBody {
 		batchAdjustedIndex := startIndex + response.InputIndex
 		if batchAdjustedIndex < 0 || batchAdjustedIndex >= len(zipcodes) {
-			return nil, fmt.Errorf("global input index %d is out of bounds, indicating a possible issue with API response", batchAdjustedIndex)
+			return nil, fmt.Errorf("batch adjusted index %d is out of bounds, indicating a possible issue with API response", batchAdjustedIndex)
 		}
 
 		if response.Status != "" {
 			result := ZipcodeResult{
-				ErrorMessage: fmt.Sprintf("Invalid zip code: %s - %s, Reason: %s", zipcodes[batchAdjustedIndex], response.Status, response.Reason),
+				ErrorMessage: fmt.Sprintf("Zip code input: %s, Status response: %s, Reason: %s", zipcodes[batchAdjustedIndex], response.Status, response.Reason),
 				USPSFips:     zipToCounties[zipcodes[batchAdjustedIndex]],
 				SmartyFips:   []string{},
 				Zipcode:      zipcodes[batchAdjustedIndex],
