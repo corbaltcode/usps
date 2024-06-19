@@ -116,18 +116,18 @@ func getLastThreeChars(s string) string {
 	return ""
 }
 
-func countMismatches(uspsFIPS, smartyFIPS []string) int {
-	sort.Strings(uspsFIPS)
-	sort.Strings(smartyFIPS)
+func countMismatches(stringSliceA, stringSliceB []string) int {
+	sort.Strings(stringSliceA)
+	sort.Strings(stringSliceB)
 
 	i, j := 0, 0
 	mismatches := 0
 
-	for i < len(uspsFIPS) && j < len(smartyFIPS) {
-		if uspsFIPS[i] == smartyFIPS[j] {
+	for i < len(stringSliceA) && j < len(stringSliceB) {
+		if stringSliceA[i] == stringSliceB[j] {
 			i++
 			j++
-		} else if uspsFIPS[i] < smartyFIPS[j] {
+		} else if stringSliceA[i] < stringSliceB[j] {
 			// Usps has an element that smarty doesn't have.
 			mismatches++
 			i++
@@ -139,8 +139,8 @@ func countMismatches(uspsFIPS, smartyFIPS []string) int {
 	}
 
 	// Count any remaining elements as mismatches.
-	mismatches += len(uspsFIPS) - i
-	mismatches += len(smartyFIPS) - j
+	mismatches += len(stringSliceA) - i
+	mismatches += len(stringSliceB) - j
 
 	return mismatches
 }
@@ -163,11 +163,11 @@ func setupCSVWriter(output io.Writer) *csv.Writer {
 }
 
 func main() {
+	uspsZipToCountyFile := flag.String("csv", "", "CSV file path containing zip to county mappings for USPS data")
+	flag.Parse()
 	authId := mustGetenv("AUTH_ID")
 	authToken := mustGetenv("AUTH_TOKEN")
 	client := smarty.NewSmartyClient(authId, authToken)
-	uspsZipToCountyFile := flag.String("csv", "", "CSV file path containing zip to county mappings for USPS data")
-	flag.Parse()
 
 	var reader io.Reader
 
