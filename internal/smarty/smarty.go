@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 type zipcodeRequest struct {
@@ -64,7 +65,10 @@ func (client *client) QueryBatch(zips []string) ([]Response, error) {
 		return nil, fmt.Errorf("failed to marshal JSON payload: %w", err)
 	}
 
-	apiURL := fmt.Sprintf("%s?auth-id=%s&auth-token=%s", client.BaseURL, client.AuthId, client.AuthToken)
+	v := url.Values{}
+	v.Add("auth-id", client.AuthId)
+	v.Add("auth-token", client.AuthToken)
+	apiURL := client.BaseURL + "?" + v.Encode()
 
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonPayload))
 	if err != nil {
