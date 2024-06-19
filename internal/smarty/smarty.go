@@ -12,7 +12,7 @@ type ZipcodeRequest struct {
 	Zipcode string `json:"zipcode"`
 }
 
-type SmartyResponse struct {
+type Response struct {
 	InputIndex int       `json:"input_index"`
 	Status     string    `json:"status,omitempty"`
 	Reason     string    `json:"reason,omitempty"`
@@ -40,21 +40,21 @@ type AlternateCounty struct {
 	State             string `json:"state"`
 }
 
-type SmartyClient struct {
+type Client struct {
 	AuthId    string
 	AuthToken string
 	BaseURL   string
 }
 
-func NewSmartyClient(authId, authToken string) *SmartyClient {
-	return &SmartyClient{
+func NewClient(authId, authToken string) *Client {
+	return &Client{
 		AuthId:    authId,
 		AuthToken: authToken,
 		BaseURL:   "https://us-zipcode.api.smarty.com/lookup",
 	}
 }
 
-func (client *SmartyClient) QueryBatch(zips []string) ([]SmartyResponse, error) {
+func (client *Client) QueryBatch(zips []string) ([]Response, error) {
 	var payload []ZipcodeRequest
 	for _, zip := range zips {
 		payload = append(payload, ZipcodeRequest{Zipcode: zip})
@@ -91,7 +91,7 @@ func (client *SmartyClient) QueryBatch(zips []string) ([]SmartyResponse, error) 
 		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, body)
 	}
 
-	var smartyResponses []SmartyResponse
+	var smartyResponses []Response
 	err = json.Unmarshal(body, &smartyResponses)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)

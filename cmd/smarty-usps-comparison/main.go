@@ -64,7 +64,7 @@ func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string
 	return zips, zipToCounty, nil
 }
 
-func generateZipCountyDiff(zipcode string, smartyResponse smarty.SmartyResponse, countyMapping map[string][]string) ZIPCountyDiff {
+func generateZipCountyDiff(zipcode string, smartyResponse smarty.Response, countyMapping map[string][]string) ZIPCountyDiff {
 	errorMessage := ""
 
 	if smartyResponse.Status != "" {
@@ -164,7 +164,7 @@ func main() {
 	flag.Parse()
 	authId := mustGetenv("AUTH_ID")
 	authToken := mustGetenv("AUTH_TOKEN")
-	client := smarty.NewSmartyClient(authId, authToken)
+	client := smarty.NewClient(authId, authToken)
 
 	var reader io.Reader
 
