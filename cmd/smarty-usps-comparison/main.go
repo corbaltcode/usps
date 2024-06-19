@@ -71,7 +71,7 @@ func generateZipCountyDiff(zipcode string, smartyResponse smarty.Response, count
 		errorMessage = fmt.Sprintf("ZIP code input: %s, Status response: %s, Reason: %s", zipcode, smartyResponse.Status, smartyResponse.Reason)
 	}
 	uspsFips := countyMapping[zipcode]
-	smartyFips := extractFipsCodes(smartyResponse.Zipcodes)
+	smartyFips := extractCountyFipsCodes(smartyResponse.Zipcodes)
 
 	mismatches := countMismatches(uspsFips, smartyFips)
 
@@ -88,22 +88,22 @@ func generateZipCountyDiff(zipcode string, smartyResponse smarty.Response, count
 	}
 }
 
-func extractFipsCodes(smartyResponse []smarty.Zipcode) []string {
-	fipsCodes := make([]string, 0)
+func extractCountyFipsCodes(zipcodes []smarty.Zipcode) []string {
+	countyFipsCodes := make([]string, 0)
 
-	if smartyResponse == nil {
-		return fipsCodes
+	if zipcodes == nil {
+		return countyFipsCodes
 	}
 
-	for _, zipcode := range smartyResponse {
-		fipsCodes = append(fipsCodes, getLastThreeChars(zipcode.CountyFIPS))
+	for _, zipcode := range zipcodes {
+		countyFipsCodes = append(countyFipsCodes, getLastThreeChars(zipcode.CountyFIPS))
 
 		for _, altCounty := range zipcode.AlternateCounties {
-			fipsCodes = append(fipsCodes, getLastThreeChars(altCounty.CountyFIPS))
+			countyFipsCodes = append(countyFipsCodes, getLastThreeChars(altCounty.CountyFIPS))
 		}
 	}
 
-	return fipsCodes
+	return countyFipsCodes
 }
 
 func getLastThreeChars(s string) string {
