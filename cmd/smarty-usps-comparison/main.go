@@ -15,7 +15,7 @@ import (
 	"github.com/corbaltcode/usps/internal/smarty"
 )
 
-type ZipcodeResult struct {
+type ZIPCountyDiff struct {
 	Zipcode       string
 	USPSFips      []string
 	SmartyFips    []string
@@ -64,49 +64,46 @@ func readZipToCountyDataFromCSV(reader io.Reader) ([]string, map[string][]string
 	return zips, zipToCounty, nil
 }
 
-func ProcessSmartyResponse(responseBody []smarty.SmartyResponse, zipToCounties map[string][]string, zipcodes []string, startIndex int) ([]ZipcodeResult, error) {
-	processedResponses := make([]ZipcodeResult, 0)
+func generateZipCountyDiff(zipcode string, smartyResponse smarty.SmartyResponse, countyMapping map[string][]string) ZIPCountyDiff {
+	errorMessage := ""
 
-	for _, response := range responseBody {
-		batchAdjustedIndex := startIndex + response.InputIndex
-		if batchAdjustedIndex < 0 || batchAdjustedIndex >= len(zipcodes) {
-			return nil, fmt.Errorf("batch adjusted index %d is out of bounds, indicating a possible issue with API response", batchAdjustedIndex)
-		}
+	if smartyResponse.Status != "" {
+		errorMessage = fmt.Sprintf("ZIP code input: %s, Status response: %s, Reason: %s", zipcode, smartyResponse.Status, smartyResponse.Reason)
+	}
+	uspsFips := countyMapping[zipcode]
+	smartyFips := extractFipsCodes(smartyResponse.Zipcodes)
 
-		if response.Status != "" {
-			result := ZipcodeResult{
-				ErrorMessage: fmt.Sprintf("Zip code input: %s, Status response: %s, Reason: %s", zipcodes[batchAdjustedIndex], response.Status, response.Reason),
-				USPSFips:     zipToCounties[zipcodes[batchAdjustedIndex]],
-				SmartyFips:   []string{},
-				Zipcode:      zipcodes[batchAdjustedIndex],
-			}
-			processedResponses = append(processedResponses, result)
-			continue
-		}
+	mismatches := countMismatches(uspsFips, smartyFips)
 
-		for _, zipcode := range response.Zipcodes {
-			result := ZipcodeResult{
-				Zipcode:  zipcode.Zipcode,
-				USPSFips: zipToCounties[zipcode.Zipcode],
-			}
+	if mismatches > 0 {
+		errorMessage = fmt.Sprintf("Mismatches found: %d", mismatches)
+	}
 
-			result.SmartyFips = append(result.SmartyFips, getLastThreeChars(zipcode.CountyFIPS))
+	return ZIPCountyDiff{
+		Zipcode:       zipcode,
+		USPSFips:      uspsFips,
+		SmartyFips:    smartyFips,
+		MismatchCount: mismatches,
+		ErrorMessage:  errorMessage,
+	}
+}
 
-			for _, altCounty := range zipcode.AlternateCounties {
-				result.SmartyFips = append(result.SmartyFips, getLastThreeChars(altCounty.CountyFIPS))
-			}
+func extractFipsCodes(smartyResponse []smarty.Zipcode) []string {
+	fipsCodes := make([]string, 0)
 
-			mismatches := countMismatches(result.USPSFips, result.SmartyFips)
-			result.MismatchCount = mismatches
-			if mismatches > 0 {
-				result.ErrorMessage = fmt.Sprintf("Mismatches found: %d", mismatches)
-			}
+	if smartyResponse == nil {
+		return fipsCodes
+	}
 
-			processedResponses = append(processedResponses, result)
+	for _, zipcode := range smartyResponse {
+		fipsCodes = append(fipsCodes, getLastThreeChars(zipcode.CountyFIPS))
+
+		for _, altCounty := range zipcode.AlternateCounties {
+			fipsCodes = append(fipsCodes, getLastThreeChars(altCounty.CountyFIPS))
 		}
 	}
 
-	return processedResponses, nil
+	return fipsCodes
 }
 
 func getLastThreeChars(s string) string {
@@ -195,7 +192,6 @@ func main() {
 
 	for i := 0; i < len(zips); i += batchSize {
 		end := min(i+batchSize, len(zips))
-
 		batch := zips[i:end]
 		responseBody, err := client.QueryBatch(batch)
 
@@ -204,20 +200,21 @@ func main() {
 			continue
 		}
 
-		processedResponses, err := ProcessSmartyResponse(responseBody, zipToCounty, zips, i)
-
-		if err != nil {
-			log.Printf("Error processing responses: %v", err)
+		if len(responseBody) > len(batch) {
+			log.Printf("Received more responses (%d) than the number of queried ZIPs (%d)", len(responseBody), len(batch))
 			continue
 		}
 
-		for _, response := range processedResponses {
+		for j, response := range responseBody {
+			zip := batch[j]
+			diff := generateZipCountyDiff(zip, response, zipToCounty)
+
 			record := []string{
-				response.Zipcode,
-				strings.Join(response.USPSFips, ","),
-				strings.Join(response.SmartyFips, ","),
-				strconv.Itoa(response.MismatchCount),
-				response.ErrorMessage,
+				diff.Zipcode,
+				strings.Join(diff.USPSFips, ","),
+				strings.Join(diff.SmartyFips, ","),
+				strconv.Itoa(diff.MismatchCount),
+				diff.ErrorMessage,
 			}
 			if err := writer.Write(record); err != nil {
 				log.Printf("Error writing to CSV: %v", err)
@@ -225,9 +222,7 @@ func main() {
 		}
 
 		log.Printf("%v zips processed.", i+batchSize)
-
 		time.Sleep(rateLimitPause)
 	}
 
-	fmt.Println("All zip codes processed.")
 }
