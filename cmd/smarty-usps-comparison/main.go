@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,10 +16,11 @@ import (
 )
 
 type ZipcodeResult struct {
-	Zipcode      string
-	USPSFips     []string
-	SmartyFips   []string
-	ErrorMessage string
+	Zipcode       string
+	USPSFips      []string
+	SmartyFips    []string
+	MismatchCount int
+	ErrorMessage  string
 }
 
 func parseCSVList(dataString string) []string {
@@ -95,6 +97,7 @@ func ProcessSmartyResponse(responseBody []smarty.SmartyResponse, zipToCounties m
 			}
 
 			mismatches := countMismatches(result.USPSFips, result.SmartyFips)
+			result.MismatchCount = mismatches
 			if mismatches > 0 {
 				result.ErrorMessage = fmt.Sprintf("Mismatches found: %d", mismatches)
 			}
@@ -152,7 +155,7 @@ func mustGetenv(key string) string {
 
 func setupCSVWriter(output io.Writer) *csv.Writer {
 	writer := csv.NewWriter(output)
-	headers := []string{"Zipcode", "USPS Fips", "Smarty Fips", "Error"}
+	headers := []string{"Zipcode", "USPS Fips", "Smarty Fips", "Mismatch Count", "Error"}
 	if err := writer.Write(headers); err != nil {
 		log.Fatalf("Error writing headers to CSV: %v", err)
 	}
@@ -213,6 +216,7 @@ func main() {
 				response.Zipcode,
 				strings.Join(response.USPSFips, ","),
 				strings.Join(response.SmartyFips, ","),
+				strconv.Itoa(response.MismatchCount),
 				response.ErrorMessage,
 			}
 			if err := writer.Write(record); err != nil {
