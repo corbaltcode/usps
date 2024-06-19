@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-type ZipcodeRequest struct {
+type zipcodeRequest struct {
 	Zipcode string `json:"zipcode"`
 }
 
@@ -30,34 +30,34 @@ type Zipcode struct {
 	Latitude          float64           `json:"latitude"`
 	Longitude         float64           `json:"longitude"`
 	Precision         string            `json:"precision"`
-	AlternateCounties []AlternateCounty `json:"alternate_counties"`
+	AlternateCounties []alternateCounty `json:"alternate_counties"`
 }
 
-type AlternateCounty struct {
+type alternateCounty struct {
 	CountyFIPS        string `json:"county_fips"`
 	CountyName        string `json:"county_name"`
 	StateAbbreviation string `json:"state_abbreviation"`
 	State             string `json:"state"`
 }
 
-type Client struct {
+type client struct {
 	AuthId    string
 	AuthToken string
 	BaseURL   string
 }
 
-func NewClient(authId, authToken string) *Client {
-	return &Client{
+func NewClient(authId, authToken string) *client {
+	return &client{
 		AuthId:    authId,
 		AuthToken: authToken,
 		BaseURL:   "https://us-zipcode.api.smarty.com/lookup",
 	}
 }
 
-func (client *Client) QueryBatch(zips []string) ([]Response, error) {
-	var payload []ZipcodeRequest
+func (client *client) QueryBatch(zips []string) ([]Response, error) {
+	var payload []zipcodeRequest
 	for _, zip := range zips {
-		payload = append(payload, ZipcodeRequest{Zipcode: zip})
+		payload = append(payload, zipcodeRequest{Zipcode: zip})
 	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
