@@ -200,8 +200,8 @@ func main() {
 			continue
 		}
 
-		if len(responseBody) > len(batch) {
-			log.Printf("Received more responses (%d) than the number of queried ZIPs (%d)", len(responseBody), len(batch))
+		if len(responseBody) != len(batch) {
+			log.Printf("Mismatched response count: received %d responses for %d queried ZIPs", len(responseBody), len(batch))
 			continue
 		}
 
@@ -224,5 +224,4 @@ func main() {
 		log.Printf("%v zips processed.", i+batchSize)
 		time.Sleep(rateLimitPause)
 	}
-
 }

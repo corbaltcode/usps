@@ -41,21 +41,21 @@ type alternateCounty struct {
 	State             string `json:"state"`
 }
 
-type client struct {
-	AuthId    string
-	AuthToken string
-	BaseURL   string
+type Client struct {
+	authId    string
+	authToken string
+	baseURL   string
 }
 
-func NewClient(authId, authToken string) *client {
-	return &client{
-		AuthId:    authId,
-		AuthToken: authToken,
-		BaseURL:   "https://us-zipcode.api.smarty.com/lookup",
+func NewClient(authId, authToken string) *Client {
+	return &Client{
+		authId:    authId,
+		authToken: authToken,
+		baseURL:   "https://us-zipcode.api.smarty.com/lookup",
 	}
 }
 
-func (client *client) QueryBatch(zips []string) ([]Response, error) {
+func (client *Client) QueryBatch(zips []string) ([]Response, error) {
 	var payload []zipcodeRequest
 	for _, zip := range zips {
 		payload = append(payload, zipcodeRequest{Zipcode: zip})
@@ -66,9 +66,9 @@ func (client *client) QueryBatch(zips []string) ([]Response, error) {
 	}
 
 	v := url.Values{}
-	v.Add("auth-id", client.AuthId)
-	v.Add("auth-token", client.AuthToken)
-	apiURL := client.BaseURL + "?" + v.Encode()
+	v.Add("auth-id", client.authId)
+	v.Add("auth-token", client.authToken)
+	apiURL := client.baseURL + "?" + v.Encode()
 
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonPayload))
 	if err != nil {
