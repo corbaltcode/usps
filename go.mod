@@ -1,6 +1,6 @@
 module github.com/corbaltcode/usps
 
-go 1.17
+go 1.21
 
 require cloud.google.com/go v0.108.0
 
