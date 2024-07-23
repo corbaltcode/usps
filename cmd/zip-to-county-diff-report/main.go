@@ -17,12 +17,7 @@ import (
 
 func main() {
 	tarName := flag.String("tar", "", "Name of the tar file")
-
 	flag.Parse()
-
-	authId := mustGetenv("AUTH_ID")
-	authToken := mustGetenv("AUTH_TOKEN")
-	client := smarty.NewClient(authId, authToken)
 
 	if *tarName == "" {
 		fmt.Fprintf(os.Stderr, "Error: Missing tar file name\nUsage: %s -tar <tar_file_name> \n", os.Args[0])
@@ -30,6 +25,10 @@ func main() {
 	}
 
 	zipPassword := mustGetenv("ZIP_PASSWORD")
+	authId := mustGetenv("AUTH_ID")
+	authToken := mustGetenv("AUTH_TOKEN")
+	client := smarty.NewClient(authId, authToken)
+
 	log.Printf("Extracting USPS zip data from %v and mapping zips to corresponding USPS counties...\n", *tarName)
 
 	zipToCounty, err := ziptocounty.CollectUSPSZip4Details(*tarName, zipPassword)
@@ -81,7 +80,6 @@ func main() {
 		log.Printf("%v zips processed.", i+batchSize)
 		time.Sleep(rateLimitPause)
 	}
-
 }
 
 func getZipCodes(zipToCounty map[string][]string) []string {

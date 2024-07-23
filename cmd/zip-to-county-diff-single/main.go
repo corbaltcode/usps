@@ -14,21 +14,15 @@ func main() {
 	zipCode := flag.String("zip", "", "Single zip to look up")
 	flag.Parse()
 
-	authId := mustGetenv("AUTH_ID")
-	authToken := mustGetenv("AUTH_TOKEN")
-	client := smarty.NewClient(authId, authToken)
-
-	if *tarName == "" {
-		fmt.Fprintf(os.Stderr, "Error: Missing tar file name\nUsage: %s -tar <tar_file_name> [-zip <single_zip_code>]\n", os.Args[0])
-		os.Exit(1)
-	}
-
-	if *zipCode == "" {
-		fmt.Fprintf(os.Stderr, "Error: Missing zip code param\nUsage: %s -tar <tar_file_name> [-zip <single_zip_code>]\n", os.Args[0])
+	if *tarName == "" || *zipCode == "" {
+		fmt.Fprintf(os.Stderr, "Error: Missing required parameters\nUsage: %s -tar <tar_file_name> -zip <single_zip_code>\n", os.Args[0])
 		os.Exit(1)
 	}
 
 	zipPassword := mustGetenv("ZIP_PASSWORD")
+	authId := mustGetenv("AUTH_ID")
+	authToken := mustGetenv("AUTH_TOKEN")
+	client := smarty.NewClient(authId, authToken)
 
 	fmt.Printf("Extracting USPS zip data from %s and mapping %v to corresponding USPS counties...\n", *tarName, *zipCode)
 
@@ -63,7 +57,6 @@ func main() {
 			fmt.Printf("  - Status:            No errors detected.\n")
 		}
 		fmt.Println("--------------------------------------------------")
-
 	}
 }
 
