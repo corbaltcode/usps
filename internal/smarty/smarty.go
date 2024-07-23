@@ -103,3 +103,28 @@ func (client *Client) QueryBatch(zips []string) ([]Response, error) {
 
 	return smartyResponses, nil
 }
+
+func ExtractCountyFipsCodes(zipcodes []Zipcode) []string {
+	countyFipsCodes := make([]string, 0)
+
+	if zipcodes == nil {
+		return countyFipsCodes
+	}
+
+	for _, zipcode := range zipcodes {
+		countyFipsCodes = append(countyFipsCodes, getLastThreeChars(zipcode.CountyFIPS))
+
+		for _, altCounty := range zipcode.AlternateCounties {
+			countyFipsCodes = append(countyFipsCodes, getLastThreeChars(altCounty.CountyFIPS))
+		}
+	}
+
+	return countyFipsCodes
+}
+
+func getLastThreeChars(s string) string {
+	if len(s) >= 3 {
+		return s[len(s)-3:]
+	}
+	return ""
+}
