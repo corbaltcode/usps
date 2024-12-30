@@ -69,7 +69,6 @@ func main() {
 
 func SeedZip4Data(db *sql.DB) error {
 	var zip4Data []zip4.Zip4Detail
-	count := 1
 	_, err := db.Exec(zip4CreateTableQuery)
 	if err != nil {
 		return err
@@ -82,7 +81,7 @@ func SeedZip4Data(db *sql.DB) error {
 
 	err = zip4.ReadZip4FromZip4Tar("zip4natl.tar", mustGetenv("ZIP4_PWD"), func(detail zip4.Zip4Detail){
 		zip4Data = append(zip4Data, detail)
-		if count%BATCH_SIZE == 0 {
+		if len(zip4Data) >= BATCH_SIZE {
 			for i := 0; i < len(zip4Data); i++ {
 				params := getParameters(zip4Data[i])
 				_, err = tx.Exec(zip4InsertQuery, params...)
@@ -93,8 +92,6 @@ func SeedZip4Data(db *sql.DB) error {
 
 			zip4Data = []zip4.Zip4Detail{}
 		}
-		
-		count++
 	})
 	if err != nil {
 		return err
@@ -133,7 +130,7 @@ func SeedCityStateData(db *sql.DB) error {
 
 	err = zip4.ReadCityStateFromZip4Tar("zip4natl.tar", mustGetenv("CITYSTATE_PWD"), func(detail citystate.CityStateDetail){
 		citystateData = append(citystateData, detail)
-		if len(citystateData)%BATCH_SIZE == 0 && len(citystateData) != 0 {
+		if len(citystateData) >= BATCH_SIZE {
 			for i := 0; i < len(citystateData); i++ {
 				params := getParameters(citystateData[i])
 				_, err = tx.Exec(citystateInsertQuery, params...)
@@ -168,10 +165,10 @@ func SeedCityStateData(db *sql.DB) error {
 	return nil
 }
 
-func getParameters(detail interface{}) []interface{} {
+func getParameters(detail any) []any {
 	switch params := detail.(type) {
 	case citystate.CityStateDetail:
-		val := []interface{}{
+		val := []any {
 			params.CopyrightDetailCode,
 			params.ZipCode,
 			params.CityStateKey,
@@ -192,7 +189,7 @@ func getParameters(detail interface{}) []interface{} {
 		}
 		return val
 	case zip4.Zip4Detail:
-		val := []interface{}{
+		val := []any {
 			params.ZipCode,
 			params.RecordTypeCode,
 			params.StateAbbreviation,
